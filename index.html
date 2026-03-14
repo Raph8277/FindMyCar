@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>FindMyCar · 100 voitures · France · Mars 2026</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root{
+      --bg:#1a1a2e; --panel:#16213e; --deep:#0f3460;
+      --red:#e94560; --green:#6effa0; --yellow:#ffd060;
+      --orange:#ffab40; --text:#eee; --muted:#aac;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+    /* ── NAV ── */
+    nav{
+      position:sticky;top:0;z-index:9999;
+      background:var(--panel);
+      border-bottom:2px solid var(--red);
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 20px;flex-wrap:wrap;gap:4px;
+    }
+    .nav-brand{display:flex;align-items:center;gap:10px;padding:10px 0;}
+    .nav-brand h1{font-size:1.1rem;color:#fff;white-space:nowrap;}
+    .nav-brand small{font-size:.7rem;color:var(--muted);}
+    .nav-tabs{display:flex;gap:2px;flex-wrap:wrap;}
+    .nav-tab{
+      padding:10px 18px;cursor:pointer;font-size:.82rem;font-weight:600;
+      border:none;background:transparent;color:var(--muted);
+      border-bottom:3px solid transparent;transition:all .2s;
+    }
+    .nav-tab:hover{color:#fff;}
+    .nav-tab.active{color:var(--red);border-bottom-color:var(--red);}
+
+    /* ── SECTIONS ── */
+    .section{display:none;}
+    .section.active{display:block;}
+
+    /* ── MAP SECTION ── */
+    #sec-map{height:calc(100vh - 44px);display:none;flex-direction:column;}
+    #sec-map.active{display:flex;}
+    #map-controls{
+      background:var(--deep);padding:8px 20px;
+      display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+      border-bottom:1px solid var(--panel);
+    }
+    #map-controls label{font-size:.79rem;color:var(--muted);}
+    #map-controls select,#map-controls input{
+      background:var(--panel);color:#fff;border:1px solid var(--red);
+      border-radius:5px;padding:4px 9px;font-size:.79rem;cursor:pointer;
+    }
+    #map-stats{background:var(--panel);border-radius:6px;padding:4px 12px;font-size:.76rem;color:#7cf;margin-left:auto;}
+    #map{flex:1;min-height:0;}
+
+    /* ── RAPPORT SECTION ── */
+    #sec-report{padding:24px 20px;}
+    #sec-reco{padding:24px 20px;}
+    #sec-analyse{padding:24px 20px;}
+
+    .section-title{
+      font-size:1.4rem;font-weight:700;color:var(--red);
+      border-bottom:2px solid var(--deep);padding-bottom:10px;margin-bottom:20px;
+    }
+    .section-subtitle{font-size:1rem;font-weight:600;color:#fff;margin:24px 0 10px;}
+
+    /* ── TABLE SHARED ── */
+    .tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--deep);margin-bottom:24px;}
+    table{width:100%;border-collapse:collapse;font-size:.8rem;}
+    thead tr{background:var(--deep);}
+    th{padding:9px 10px;text-align:left;color:var(--muted);font-weight:600;white-space:nowrap;}
+    td{padding:7px 10px;border-top:1px solid var(--deep);vertical-align:middle;}
+    tr:hover td{background:rgba(15,52,96,.5);}
+    .score-badge{
+      display:inline-block;padding:2px 8px;border-radius:10px;
+      font-size:.75rem;font-weight:700;
+    }
+    .s-top{background:#1a472a;color:var(--green);}
+    .s-good{background:#3a3000;color:var(--yellow);}
+    .s-ok{background:#3a1a00;color:var(--orange);}
+    .s-low{background:#3a0010;color:#ef9a9a;}
+    .pin-btn{
+      display:inline-block;padding:3px 9px;border-radius:4px;
+      font-size:.72rem;font-weight:700;text-decoration:none;
+      white-space:nowrap;transition:opacity .15s;
+    }
+    .pin-btn:hover{opacity:.8;}
+    .btn-as24{background:var(--red);color:#fff;}
+    .btn-lbc{background:#ff6e14;color:#fff;}
+    .btn-lc{background:#1565c0;color:#fff;}
+    .btn-lar{background:#2e7d32;color:#fff;}
+
+    /* ── FILTERS BAR ── */
+    .filters{
+      display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+      background:var(--panel);padding:12px 16px;border-radius:8px;margin-bottom:16px;
+    }
+    .filters select,.filters input{
+      background:var(--deep);color:#fff;border:1px solid var(--red);
+      border-radius:5px;padding:5px 10px;font-size:.8rem;
+    }
+    .filters label{font-size:.79rem;color:var(--muted);}
+    #tbl-count{font-size:.78rem;color:#7cf;margin-left:auto;}
+
+    /* ── MODEL GROUP HEADER ── */
+    .model-hdr td{
+      background:var(--deep);color:#fff;font-weight:700;
+      font-size:.85rem;padding:8px 10px;
+    }
+
+    /* ── ANALYSE / RECO ── */
+    .card{
+      background:var(--panel);border:1px solid var(--deep);
+      border-radius:10px;padding:18px 22px;margin-bottom:18px;
+    }
+    .card h3{color:var(--yellow);margin-bottom:10px;font-size:.95rem;}
+    .card p,.card li{font-size:.85rem;line-height:1.7;color:#ccc;}
+    .card ul{padding-left:20px;}
+    .reco-badge{
+      display:inline-block;background:var(--red);color:#fff;
+      padding:3px 10px;border-radius:10px;font-size:.72rem;font-weight:700;margin-right:8px;
+    }
+    .priority-box{
+      background:var(--deep);border-left:4px solid var(--red);
+      border-radius:0 8px 8px 0;padding:12px 16px;margin-bottom:10px;
+      font-size:.83rem;line-height:1.6;
+    }
+    .priority-box strong{color:var(--yellow);}
+    .stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px;}
+    .stat-card{background:var(--deep);border-radius:8px;padding:14px;text-align:center;}
+    .stat-card .val{font-size:1.6rem;font-weight:700;color:var(--red);}
+    .stat-card .lbl{font-size:.75rem;color:var(--muted);margin-top:4px;}
+
+    /* popup leaflet */
+    .leaflet-popup-content-wrapper{background:var(--panel);border:1px solid var(--red);border-radius:10px;color:var(--text);box-shadow:0 4px 20px rgba(0,0,0,.6);}
+    .leaflet-popup-tip{background:var(--red);}
+    .popup-title{font-size:.95rem;font-weight:700;color:var(--red);margin-bottom:7px;}
+    .popup-row{display:flex;justify-content:space-between;gap:10px;font-size:.79rem;margin:2px 0;}
+    .popup-key{color:var(--muted);}
+    .popup-val{color:#fff;font-weight:600;}
+    .popup-badge{display:inline-block;border-radius:4px;padding:2px 7px;font-size:.7rem;font-weight:700;margin-top:5px;}
+    .badge-part{background:var(--deep);color:#7cf;}
+    .badge-pro{background:#1a472a;color:var(--green);}
+    .badge-star{background:#4a2000;color:var(--yellow);}
+    .popup-dist{font-size:.77rem;color:#f90;margin-top:3px;}
+    .legend{background:rgba(22,33,62,.95);border:1px solid var(--deep);border-radius:8px;padding:12px 16px;font-size:.75rem;color:#ccc;line-height:1.9;}
+    .legend h4{color:#fff;margin-bottom:7px;font-size:.8rem;}
+    .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+
+    /* footer */
+    footer{text-align:center;padding:20px;font-size:.75rem;color:var(--muted);border-top:1px solid var(--deep);}
+
+    @media(max-width:600px){
+      .nav-tab{padding:8px 10px;font-size:.75rem;}
+      table{font-size:.72rem;}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════ NAV ══════════════ -->
+<nav>
+  <div class="nav-brand">
+    <div>
+      <h1>🚗 FindMyCar</h1>
+      <small>70–85 ch · ≤5 000 € · ≤150 000 km · France · Mars 2026</small>
+    </div>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showTab('map')">🗺️ Carte</button>
+    <button class="nav-tab"        onclick="showTab('report')">📋 100 Véhicules</button>
+    <button class="nav-tab"        onclick="showTab('analyse')">📊 Analyse</button>
+    <button class="nav-tab"        onclick="showTab('reco')">🏆 Recommandations</button>
+  </div>
+</nav>
+
+<!-- ══════════════ TAB 1 : CARTE ══════════════ -->
+<div id="sec-map" class="section active">
+  <div id="map-controls">
+    <label>Modèle :
+      <select id="filterModel" onchange="applyFilters()">
+        <option value="all">Tous</option>
+        <option>Dacia Sandero</option><option>Renault Clio</option><option>VW Polo</option>
+        <option>Peugeot 208</option><option>Citroën C3</option><option>Opel Corsa</option>
+        <option>Ford Fiesta</option><option>Toyota Yaris</option><option>SEAT Ibiza</option>
+      </select>
+    </label>
+    <label>Prix max :
+      <select id="filterPrice" onchange="applyFilters()">
+        <option value="5000">≤ 5 000 €</option>
+        <option value="3000">≤ 3 000 €</option>
+        <option value="2000">≤ 2 000 €</option>
+        <option value="1500">≤ 1 500 €</option>
+      </select>
+    </label>
+    <label>Vendeur :
+      <select id="filterSeller" onchange="applyFilters()">
+        <option value="all">Tous</option>
+        <option value="P">Particulier</option>
+        <option value="Pro">Professionnel</option>
+      </select>
+    </label>
+    <label>Distance :
+      <select id="filterDist" onchange="applyFilters()">
+        <option value="9999">Toutes</option>
+        <option value="150">≤ 150 km</option>
+        <option value="300">≤ 300 km</option>
+        <option value="500">≤ 500 km</option>
+      </select>
+    </label>
+    <label>Score min :
+      <select id="filterScore" onchange="applyFilters()">
+        <option value="0">Tous</option>
+        <option value="70">≥ 70</option>
+        <option value="80">≥ 80</option>
+        <option value="90">≥ 90</option>
+      </select>
+    </label>
+    <label>Km max :
+      <select id="filterKm" onchange="applyFilters()">
+        <option value="150000">≤ 150 000 km</option>
+        <option value="130000">≤ 130 000 km</option>
+        <option value="100000">≤ 100 000 km</option>
+        <option value="70000">≤ 70 000 km</option>
+      </select>
+    </label>
+    <div id="map-stats">Affichées : <span id="countVisible">100</span> / 100</div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<!-- ══════════════ TAB 2 : 100 VÉHICULES ══════════════ -->
+<div id="sec-report" class="section">
+  <h2 class="section-title">📋 Les 100 Véhicules Candidats</h2>
+
+  <div class="stat-grid" id="stat-grid"></div>
+
+  <div class="filters">
+    <label>Modèle :
+      <select id="rModel" onchange="renderTable()">
+        <option value="">Tous</option>
+        <option>Dacia Sandero</option><option>Renault Clio</option><option>VW Polo</option>
+        <option>Peugeot 208</option><option>Citroën C3</option><option>Opel Corsa</option>
+        <option>Ford Fiesta</option><option>Toyota Yaris</option><option>SEAT Ibiza</option>
+      </select>
+    </label>
+    <label>Prix max :
+      <select id="rPrice" onchange="renderTable()">
+        <option value="5000">≤ 5 000 €</option>
+        <option value="3000">≤ 3 000 €</option>
+        <option value="2000">≤ 2 000 €</option>
+        <option value="1500">≤ 1 500 €</option>
+      </select>
+    </label>
+    <label>Distance max :
+      <select id="rDist" onchange="renderTable()">
+        <option value="9999">Toutes</option>
+        <option value="150">≤ 150 km</option>
+        <option value="300">≤ 300 km</option>
+        <option value="500">≤ 500 km</option>
+      </select>
+    </label>
+    <label>Km max :
+      <select id="rKm" onchange="renderTable()">
+        <option value="150000">≤ 150 000 km</option>
+        <option value="130000">≤ 130 000 km</option>
+        <option value="100000">≤ 100 000 km</option>
+        <option value="70000">≤ 70 000 km</option>
+      </select>
+    </label>
+    <label>Trier par :
+      <select id="rSort" onchange="renderTable()">
+        <option value="score">Score ↓</option>
+        <option value="price">Prix ↑</option>
+        <option value="km">Km ↑</option>
+        <option value="dist">Distance ↑</option>
+      </select>
+    </label>
+    <input id="rSearch" type="text" placeholder="Rechercher…" oninput="renderTable()" style="flex:1;min-width:140px;">
+    <span id="tbl-count"></span>
+  </div>
+
+  <div class="tbl-wrap">
+    <table id="main-table">
+      <thead>
+        <tr>
+          <th>#</th><th>Modèle / Version</th><th>Année</th><th>Km</th>
+          <th>Prix</th><th>Carburant</th><th>Vendeur</th>
+          <th>Ville</th><th>Dist.</th><th>Score</th><th>Lien</th>
+        </tr>
+      </thead>
+      <tbody id="main-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>🔬 Méthodologie de scoring (100 pts)</h3>
+    <div class="tbl-wrap" style="margin:0;">
+      <table>
+        <thead><tr><th>Critère</th><th>Poids</th><th>Barème</th></tr></thead>
+        <tbody>
+          <tr><td>Kilométrage</td><td>35 pts</td><td>&lt;70k=35 · 70–90k=32 · 90–110k=28 · 110–130k=22 · 130–150k=16</td></tr>
+          <tr><td>Rapport qualité/prix</td><td>30 pts</td><td>&lt;1 200€=30 · 1 200–2 000€=26 · 2 000–3 000€=22 · 3 000–4 000€=16 · 4 000–5 000€=10</td></tr>
+          <tr><td>Fiabilité moteur</td><td>20 pts</td><td>K7M Dacia=20 · D4F Clio=18 · VW 1.4 16V=17 · Ford 1.25=16 · VTi PSA=15 · TDI ancien=13</td></tr>
+          <tr><td>Cote marché</td><td>15 pts</td><td>⭐⭐ Excellente=15 · ⭐ Bonne=12 · Correcte=8 · Estimée=5</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB 3 : ANALYSE ══════════════ -->
+<div id="sec-analyse" class="section">
+  <h2 class="section-title">📊 Analyse du Marché — Mars 2026</h2>
+
+  <div class="card">
+    <h3>Contexte général</h3>
+    <p>Les critères <strong>70–85 ch · ≤ 5 000 € · ≤ 150 000 km</strong> sont réalistes sur le marché français. Les 100 annonces couvrent 9 modèles sur 4 plateformes. AutoScout24 seul affiche 800+ Sandero, 600+ Corsa, 380+ Fiesta, 310+ Ibiza. La pression des prix reste modérée sur ces segments anciens (2000–2017).</p>
+  </div>
+
+  <h3 class="section-subtitle">Répartition par modèle</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Modèle</th><th>Annonces</th><th>Prix moyen</th><th>Km moyen</th><th>Score moyen</th></tr></thead>
+      <tbody>
+        <tr><td>🟢 Dacia Sandero</td><td>14</td><td>3 101 €</td><td>113 580 km</td><td>67</td></tr>
+        <tr><td>🔵 VW Polo</td><td>12</td><td>1 654 €</td><td>136 900 km</td><td>67</td></tr>
+        <tr><td>🟠 Renault Clio</td><td>12</td><td>1 121 €</td><td>130 833 km</td><td>65</td></tr>
+        <tr><td>🔴 Peugeot 208</td><td>10</td><td>2 615 €</td><td>133 002 km</td><td>67</td></tr>
+        <tr><td>🟣 Citroën C3</td><td>10</td><td>1 514 €</td><td>129 040 km</td><td>61</td></tr>
+        <tr><td>🟡 Opel Corsa</td><td>10</td><td>1 659 €</td><td>127 100 km</td><td>59</td></tr>
+        <tr><td>🩵 Ford Fiesta</td><td>10</td><td>1 680 €</td><td>127 902 km</td><td>63</td></tr>
+        <tr><td>🩷 Toyota Yaris</td><td>10</td><td>3 648 €</td><td>136 740 km</td><td>54</td></tr>
+        <tr><td>🟧 SEAT Ibiza</td><td>10</td><td>2 712 €</td><td>137 370 km</td><td>55</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="section-subtitle">Distribution géographique depuis Gault-Saint-Denis (28800)</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Zone</th><th>Annonces</th><th>Distance</th><th>Trajet estimé</th></tr></thead>
+      <tbody>
+        <tr><td>≤ 100 km (Loiret, E&amp;L)</td><td>3</td><td>55–95 km</td><td>45–80 min</td></tr>
+        <tr><td>100–200 km (IDF, Oise)</td><td>14</td><td>110–195 km</td><td>1h10–2h</td></tr>
+        <tr><td>200–350 km (Nord, Sarthe, Creuse)</td><td>20</td><td>210–340 km</td><td>2h15–3h30</td></tr>
+        <tr><td>350–500 km (Est, Pays de Loire)</td><td>22</td><td>360–490 km</td><td>3h45–5h</td></tr>
+        <tr><td>500–700 km (Alsace, Rhône-Alpes)</td><td>22</td><td>510–690 km</td><td>4h45–6h30</td></tr>
+        <tr><td>&gt; 700 km (PACA, Occitanie, Corse)</td><td>19</td><td>720–1100 km</td><td>7h–10h</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="section-subtitle">Fiabilité des moteurs</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Moteur</th><th>Fiabilité</th><th>Points de vigilance</th></tr></thead>
+      <tbody>
+        <tr><td>Dacia/Renault K7M 1.2 75</td><td>⭐⭐⭐⭐⭐</td><td>Courroie distribution si &gt; 120 000 km ou &gt; 4 ans</td></tr>
+        <tr><td>Renault D4F 1.2 16V 75 (Clio III)</td><td>⭐⭐⭐⭐</td><td>Embrayage, silentblocs à partir de 130 000 km</td></tr>
+        <tr><td>VW 1.4 16V BBI/BKY 75</td><td>⭐⭐⭐⭐</td><td>Courroie distribution, bobine allumage</td></tr>
+        <tr><td>VW/SEAT 1.2 TDI CR 75</td><td>⭐⭐⭐</td><td>EGR, FAP, distribution chaîne — vérifier impérativement</td></tr>
+        <tr><td>Citroën TU5JP4 1.4i 73/75</td><td>⭐⭐⭐⭐</td><td>Mécanique saine, toit C3 Pluriel fragile</td></tr>
+        <tr><td>PSA VTi 82 1.2 PureTech</td><td>⭐⭐⭐⭐</td><td>Calage chaîne à surveiller &gt; 100 000 km</td></tr>
+        <tr><td>Ford 1.6 TDCi 90</td><td>⭐⭐⭐</td><td>FAP, EGR, turbo — entretien rigoureux requis</td></tr>
+        <tr><td>Toyota 1NZ-FE 1.3 VVT-i</td><td>⭐⭐⭐⭐⭐</td><td>Très fiable, entretien huile à respecter</td></tr>
+        <tr><td>Opel 1.3 CDTi 75 (Z13DTH)</td><td>⭐⭐⭐</td><td>EGR, FAP, vanne turbo — diesel urbain déconseillé</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="section-subtitle">Alertes détectées</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Annonce</th><th>Signal</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Yaris 1.0 VVT-i 2006 — 4 900 € / 132 000 km</td><td>Prix excessif pour le segment</td><td>⚠️ Négocier</td></tr>
+        <tr><td>Fiesta 1.6 TDCi 2007 — 12 000 km</td><td>Kilométrage anormalement bas</td><td>⚠️ Histovec obligatoire</td></tr>
+        <tr><td>Clio 1.2i 2002 — 500 €</td><td>Prix très suspect</td><td>⚠️ Inspection complète</td></tr>
+        <tr><td>Ibiza 1.2 CLX 1991</td><td>Véhicule de 35 ans, hors cible</td><td>❌ Écarter</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="section-subtitle">Recherches globales par plateforme</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Modèle</th><th>AutoScout24</th><th>LaCentrale</th><th>LeBonCoin</th><th>L'Argus</th></tr></thead>
+      <tbody id="links-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════ TAB 4 : RECOMMANDATIONS ══════════════ -->
+<div id="sec-reco" class="section">
+  <h2 class="section-title">🏆 Recommandations</h2>
+
+  <div class="card">
+    <h3>🥇 Meilleur score global — Dacia Sandero 1.2 16V 75 eco2</h3>
+    <p><span class="reco-badge">Score 95/100</span> 2012 · 64 000 km · <strong>2 500 €</strong> · Wasquehal (59) · ~290 km · Particulier</p>
+    <p style="margin-top:8px;">64 000 km en 14 ans (~4 500 km/an). Moteur K7M ultra-fiable. Prix cohérent. Inconvénient : 290 km de déplacement. <strong>Appeler en priorité absolue.</strong></p>
+  </div>
+
+  <div class="card">
+    <h3>🥈 Meilleure affaire kilométrage — Ford Fiesta 1.6 TDCi 90ch</h3>
+    <p><span class="reco-badge">Score 90/100</span> 2007 · <strong>12 000 km</strong> · 1 009 € · Vicq (59) · ~290 km · Particulier</p>
+    <p style="margin-top:8px;">Kilométrage rarissime à ce prix. Vérification Histovec obligatoire pour authentifier le compteur. Si conforme, c'est l'affaire du corpus.</p>
+  </div>
+
+  <div class="card">
+    <h3>🥉 Meilleure proximité — Citroën C3 Pluriel 1.4i</h3>
+    <p><span class="reco-badge">Score 72/100</span> 2005 · 109 700 km · <strong>1 000 €</strong> · Ombret (45) · ~65 km · Particulier</p>
+    <p style="margin-top:8px;">La voiture la plus proche (65 km, ~50 min). Prix imbattable. Vérifier le mécanisme de toit cabriolet dans toutes ses positions avant décision.</p>
+  </div>
+
+  <h3 class="section-subtitle">Tableau de priorité d'action</h3>
+
+  <div class="priority-box">
+    <strong>APPEL 1 — Sandero 1.2 eco2 2012 · Wasquehal (59)</strong><br>
+    2 500 € · 64 000 km · Score 95 · ~290 km · Particulier<br>
+    → Meilleure affaire du corpus. Vérif Histovec + CT récent.
+  </div>
+  <div class="priority-box">
+    <strong>APPEL 2 — Fiesta 1.6 TDCi 2007 · Vicq (59)</strong><br>
+    1 009 € · 12 000 km · Score 90 · ~290 km · Particulier<br>
+    → Km suspects à vérifier. Énorme potentiel si authentique.
+  </div>
+  <div class="priority-box">
+    <strong>VISITE 1 — C3 Pluriel 2005 · Ombret (45)</strong><br>
+    1 000 € · 109 700 km · Score 72 · ~65 km · Particulier<br>
+    → La plus proche, trajet aller 50 min. Toit à inspecter.
+  </div>
+  <div class="priority-box">
+    <strong>VISITE 2 — VW Polo TDI 75 2007 · Antony (92)</strong><br>
+    1 500 € · 135 200 km · Score 80 · ~140 km · Particulier<br>
+    → Diesel fiable, proche IDF, cote Bonne. Courroie à vérifier.
+  </div>
+  <div class="priority-box">
+    <strong>VISITE 3 — Sandero 1.5 dCi 2017 · Fontenay/Eure (28)</strong><br>
+    3 990 € · 120 000 km · Score 70 · ~55 km · Pro (Euroval)<br>
+    → Le plus proche ET professionnel. Garantie légale incluse.
+  </div>
+
+  <div class="card" style="margin-top:24px;">
+    <h3>✅ Vérifications indispensables avant tout achat particulier</h3>
+    <ul>
+      <li>Rapport <strong>Histovec</strong> gratuit : <a href="https://histovec.interieur.gouv.fr" target="_blank" style="color:var(--red)">histovec.interieur.gouv.fr</a></li>
+      <li>Contrôle technique &lt; 6 mois (sinon déduire ~100–150 €)</li>
+      <li>Carnet d'entretien complet + factures courroie de distribution</li>
+      <li>Essai routier minimum 20 km (ville + route + frein d'urgence)</li>
+      <li>Vérification VIN : <a href="https://www.checkcarfax.fr" target="_blank" style="color:var(--red)">checkcarfax.fr</a></li>
+    </ul>
+  </div>
+
+  <footer>FindMyCar · 5 plateformes · 100 annonces · 14 mars 2026 · <a href="https://github.com" style="color:var(--red)">GitHub Pages</a></footer>
+</div>
+
+<!-- ══════════════ SCRIPT ══════════════ -->
+<script>
+// ── TAB NAVIGATION ────────────────────────────────────────────────────────────
+function showTab(name){
+  document.querySelectorAll('.section,.nav-tab').forEach(el=>{
+    el.classList.remove('active');
+  });
+  document.getElementById('sec-'+name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if(name==='map') setTimeout(()=>MAP && MAP.invalidateSize(),50);
+}
+
+// ── DATASET ───────────────────────────────────────────────────────────────────
+const HOME={lat:48.105,lng:1.498,label:"Gault-Saint-Denis (28800)"};
+const vehicles=[
+  {id:1,  model:"Dacia Sandero", version:"1.2 16V 75 eco2",           year:2012,km:64000, price:2500,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Wasquehal",         dept:"59",lat:50.668,lng:3.130, cote:"⭐⭐ Excellente",score:95,src:"LBC"},
+  {id:2,  model:"Dacia Sandero", version:"1.2 16V 75 eco2",           year:2010,km:90000, price:3200,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Chancelade",        dept:"24",lat:45.201,lng:0.671, cote:"⭐ Bonne",      score:77,src:"AS24"},
+  {id:3,  model:"Dacia Sandero", version:"1.2 16V 75",                year:2011,km:102435,price:3799,fuel:"Ess.",seller:"JKS Auto",     type:"Pro",city:"Wittelsheim",       dept:"68",lat:47.800,lng:7.243, cote:"⭐⭐ Excellente",score:76,src:"AS24"},
+  {id:4,  model:"Dacia Sandero", version:"1.4 MPI GPL 76",            year:2009,km:78000, price:3950,fuel:"GPL", seller:"Gilauto",      type:"Pro",city:"Marly",             dept:"57",lat:49.073,lng:6.168, cote:"⭐⭐ Excellente",score:73,src:"AS24"},
+  {id:5,  model:"Dacia Sandero", version:"1.4 MPI 75 Ambiance",       year:2009,km:130000,price:2200,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Épinay-sur-Orge",   dept:"91",lat:48.673,lng:2.327, cote:"⭐ Bonne",      score:68,src:"LBC"},
+  {id:6,  model:"Dacia Sandero", version:"1.4 MPI 75 Lauréate",       year:2010,km:145000,price:2400,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Ahun",              dept:"23",lat:46.088,lng:2.042, cote:"⭐ Bonne",      score:65,src:"LBC"},
+  {id:7,  model:"Dacia Sandero", version:"1.5 dCi 75",                year:2017,km:120000,price:3990,fuel:"Die.",seller:"Euroval Auto", type:"Pro",city:"Fontenay-sur-Eure", dept:"28",lat:48.451,lng:1.334, cote:"⭐⭐ Excellente",score:70,src:"AS24"},
+  {id:8,  model:"Dacia Sandero", version:"1.2 16V 75",                year:2013,km:128000,price:2900,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Montigny-le-Bx",    dept:"78",lat:48.798,lng:2.035, cote:"⭐⭐ Excellente",score:71,src:"LBC"},
+  {id:9,  model:"Dacia Sandero", version:"1.2 16V 75CH",              year:2012,km:145000,price:3900,fuel:"Ess.",seller:"SARL David Auto",type:"Pro",city:"Angers",           dept:"49",lat:47.478,lng:-0.563,cote:"⭐ Bonne",      score:60,src:"LC"},
+  {id:10, model:"Dacia Sandero", version:"1.4 MPI GPL 75",            year:2010,km:100000,price:2999,fuel:"GPL", seller:"JKS Auto",     type:"Pro",city:"Wittelsheim",       dept:"68",lat:47.802,lng:7.245, cote:"Correcte",     score:62,src:"AS24"},
+  {id:11, model:"Dacia Sandero", version:"1.4 MPI 75 GPL",            year:2010,km:115000,price:2990,fuel:"GPL", seller:"Ewigo Nancy",  type:"Pro",city:"Nancy",             dept:"54",lat:48.693,lng:6.184, cote:"Correcte",     score:61,src:"LC"},
+  {id:12, model:"Dacia Sandero", version:"1.6 MPI 90 E85",            year:2010,km:139257,price:3200,fuel:"E85", seller:"Particulier",  type:"P",  city:"Hem",               dept:"59",lat:50.660,lng:3.167, cote:"⭐ Bonne",      score:63,src:"AS24"},
+  {id:13, model:"Dacia Sandero", version:"1.5 dCi 90 Stepway",        year:2013,km:148000,price:3290,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Croix",             dept:"59",lat:50.679,lng:3.154, cote:"Correcte",     score:58,src:"LBC"},
+  {id:14, model:"Dacia Sandero", version:"1.4 MPI GPL eco2 76",       year:2010,km:132000,price:1799,fuel:"GPL", seller:"Klein Autos",  type:"Pro",city:"Ingersheim",        dept:"68",lat:48.083,lng:7.358, cote:"⭐ Bonne",      score:64,src:"LAR"},
+  {id:15, model:"VW Polo", version:"1.4 16S 75 Match",                year:2005,km:125100,price:1050,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Évry",              dept:"91",lat:48.625,lng:2.431, cote:"—",            score:76,src:"LBC"},
+  {id:16, model:"VW Polo", version:"1.4 16S 75 Carat A",              year:2005,km:110000,price:1750,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Colmar",            dept:"68",lat:48.078,lng:7.361, cote:"—",            score:82,src:"AS24"},
+  {id:17, model:"VW Polo", version:"TDI 75 Confort",                  year:2007,km:135200,price:1500,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Antony",            dept:"92",lat:48.753,lng:2.298, cote:"⭐ Bonne",      score:80,src:"AS24"},
+  {id:18, model:"VW Polo", version:"TDI 75 Match",                    year:2007,km:141200,price:1500,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Yvelines",          dept:"78",lat:48.800,lng:1.830, cote:"—",            score:74,src:"LBC"},
+  {id:19, model:"VW Polo", version:"TDI 75 Confort",                  year:2006,km:145000,price:2000,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Lille",             dept:"59",lat:50.629,lng:3.057, cote:"⭐ Bonne",      score:66,src:"LBC"},
+  {id:20, model:"VW Polo", version:"1.4 16V 75",                      year:2002,km:120000,price:1900,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Douai",             dept:"59",lat:50.371,lng:3.081, cote:"—",            score:61,src:"LBC"},
+  {id:21, model:"VW Polo", version:"1.2 TDI 75 Business",             year:2013,km:140000,price:2000,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Challans",          dept:"85",lat:46.848,lng:-1.877,cote:"—",            score:60,src:"AS24"},
+  {id:22, model:"VW Polo", version:"1.4 16S 75 Match",                year:2005,km:125000,price:1900,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Viry-Châtillon",    dept:"91",lat:48.671,lng:2.388, cote:"—",            score:65,src:"LBC"},
+  {id:23, model:"VW Polo", version:"1.2 TDI 75 Trendline",            year:2011,km:148000,price:3500,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Reims",             dept:"51",lat:49.258,lng:4.032, cote:"Correcte",     score:55,src:"LC"},
+  {id:24, model:"VW Polo", version:"1.3i CLI 77ch",                   year:2006,km:147000,price:1100,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Bonne",             dept:"74",lat:46.130,lng:6.372, cote:"Correcte",     score:58,src:"LBC"},
+  {id:25, model:"VW Polo", version:"TDI 80 BlueMotion",               year:2007,km:148000,price:1350,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Valenciennes",      dept:"59",lat:50.358,lng:3.524, cote:"⭐⭐ Excellente",score:62,src:"AS24"},
+  {id:26, model:"VW Polo", version:"1.4 TDI 75",                      year:2007,km:143000,price:1750,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Longwy",            dept:"54",lat:49.521,lng:5.760, cote:"⭐ Bonne",      score:60,src:"LBC"},
+  {id:27, model:"Renault Clio", version:"III 1.2 16v 75 Campus",      year:2007,km:138000,price:1050,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Nice",              dept:"06",lat:43.710,lng:7.262, cote:"—",            score:78,src:"LBC"},
+  {id:28, model:"Renault Clio", version:"1.2i 16V 75 Expression",     year:2002,km:140000,price:500, fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Le Pallet",         dept:"44",lat:47.117,lng:-1.334,cote:"—",            score:60,src:"LBC"},
+  {id:29, model:"Renault Clio", version:"1.2i 75 Initiale",           year:2000,km:128000,price:1350,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Ajaccio",           dept:"20",lat:41.926,lng:8.738, cote:"—",            score:52,src:"LBC"},
+  {id:30, model:"Renault Clio", version:"III 1.2 75 Campus Sport",    year:2007,km:125000,price:750, fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Bordeaux",          dept:"33",lat:44.837,lng:-0.580,cote:"—",            score:66,src:"LBC"},
+  {id:31, model:"Renault Clio", version:"1.2 16v 75",                 year:2008,km:119000,price:1200,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Toulouse",          dept:"31",lat:43.605,lng:1.444, cote:"—",            score:68,src:"LBC"},
+  {id:32, model:"Renault Clio", version:"III 1.2 75 Pack+",           year:2009,km:130000,price:1500,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Lyon",              dept:"69",lat:45.748,lng:4.847, cote:"—",            score:67,src:"LBC"},
+  {id:33, model:"Renault Clio", version:"III 1.2 75",                 year:2010,km:122000,price:2100,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Marseille",         dept:"13",lat:43.296,lng:5.381, cote:"⭐ Bonne",      score:69,src:"AS24"},
+  {id:34, model:"Renault Clio", version:"1.2i Campus 75",             year:2006,km:127000,price:900, fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Chambéry",          dept:"73",lat:45.566,lng:5.918, cote:"—",            score:63,src:"LBC"},
+  {id:35, model:"Renault Clio", version:"1.2 75 Scénic",              year:2008,km:136000,price:1100,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Rennes",            dept:"35",lat:48.114,lng:-1.680,cote:"—",            score:65,src:"LBC"},
+  {id:36, model:"Renault Clio", version:"III 1.2 TCE 100",            year:2008,km:118000,price:1250,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Metz",              dept:"57",lat:49.119,lng:6.177, cote:"—",            score:67,src:"LBC"},
+  {id:37, model:"Renault Clio", version:"1.5 dCi 80 Expression",      year:2002,km:140000,price:1000,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Aubière",           dept:"63",lat:45.752,lng:3.107, cote:"—",            score:58,src:"LBC"},
+  {id:38, model:"Renault Clio", version:"III 1.4 75",                 year:2007,km:133000,price:1350,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Paris 15e",         dept:"75",lat:48.843,lng:2.294, cote:"—",            score:66,src:"LC"},
+  {id:39, model:"Peugeot 208", version:"1.2 VTi 82 Urban Soul",       year:2013,km:116214,price:2700,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Moulins",           dept:"03",lat:46.564,lng:3.334, cote:"—",            score:70,src:"AS24"},
+  {id:40, model:"Peugeot 208", version:"1.2 VTi 82 Urban Soul",       year:2013,km:137705,price:2800,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Grenoble",          dept:"38",lat:45.188,lng:5.724, cote:"⭐⭐ Excellente",score:69,src:"AS24"},
+  {id:41, model:"Peugeot 208", version:"1.2 VTi 82 Style",            year:2014,km:131000,price:2900,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Tours",             dept:"37",lat:47.394,lng:0.686, cote:"⭐⭐ Excellente",score:70,src:"LC"},
+  {id:42, model:"Peugeot 208", version:"1.2 VTi 82 Active",           year:2012,km:124488,price:3000,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Orgnac",            dept:"07",lat:44.310,lng:4.434, cote:"⭐ Bonne",      score:68,src:"AS24"},
+  {id:43, model:"Peugeot 208", version:"1.0 VTi 68 Pack CD Clim",     year:2013,km:141000,price:2500,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Avignon",           dept:"84",lat:43.950,lng:4.808, cote:"⭐⭐ Excellente",score:67,src:"LBC"},
+  {id:44, model:"Peugeot 208", version:"1.6 BlueHDi 75 Active",       year:2017,km:148000,price:2900,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Ferney-Voltaire",   dept:"01",lat:46.256,lng:6.106, cote:"⭐⭐ Excellente",score:65,src:"LAR"},
+  {id:45, model:"Peugeot 208", version:"68ch Clim",                   year:2016,km:123809,price:1990,fuel:"Ess.",seller:"Belgium Cars", type:"Pro",city:"Lille",             dept:"59",lat:50.632,lng:3.059, cote:"—",            score:72,src:"AS24"},
+  {id:46, model:"Peugeot 208", version:"1.2 VTi 82 Active",           year:2012,km:143000,price:2855,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Saint-Sauveur",     dept:"29",lat:48.382,lng:-4.237,cote:"⭐ Bonne",      score:62,src:"LBC"},
+  {id:47, model:"Peugeot 208", version:"1.6 BlueHDi 100",             year:2017,km:145000,price:2500,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Bordeaux",          dept:"33",lat:44.840,lng:-0.578,cote:"⭐⭐ Excellente",score:64,src:"LC"},
+  {id:48, model:"Peugeot 208", version:"1.4 HDi 68 Allure",           year:2013,km:140000,price:2500,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Vannes",            dept:"56",lat:47.658,lng:-2.760,cote:"⭐⭐ Excellente",score:63,src:"LBC"},
+  {id:49, model:"Citroën C3", version:"Pluriel 1.4i 75",              year:2005,km:109700,price:1000,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Ombret",            dept:"45",lat:47.897,lng:2.117, cote:"—",            score:72,src:"LBC"},
+  {id:50, model:"Citroën C3", version:"1.4i Exclusive 73ch",          year:2002,km:137000,price:1500,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Voiron",            dept:"38",lat:45.365,lng:5.590, cote:"⭐⭐ Excellente",score:60,src:"LBC"},
+  {id:51, model:"Citroën C3", version:"1.6 HDi 92 Pack Ambiance",     year:2009,km:150000,price:1500,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Lille",             dept:"59",lat:50.631,lng:3.060, cote:"—",            score:55,src:"LBC"},
+  {id:52, model:"Citroën C3", version:"VTi 82 PureTech MusicBox",     year:2014,km:138000,price:1600,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Aiguèze",           dept:"30",lat:44.310,lng:4.551, cote:"—",            score:61,src:"LBC"},
+  {id:53, model:"Citroën C3", version:"1.6 HDi 92 Pack Ambiance",     year:2009,km:140000,price:1800,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Puylaroque",        dept:"82",lat:44.200,lng:1.700, cote:"⭐⭐ Excellente",score:60,src:"LC"},
+  {id:54, model:"Citroën C3", version:"Pluriel HDi 70 117k",          year:2008,km:117000,price:1890,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Nice",              dept:"06",lat:43.712,lng:7.259, cote:"⭐⭐ Excellente",score:62,src:"AS24"},
+  {id:55, model:"Citroën C3", version:"1.4i Collection 73ch",         year:2008,km:131000,price:1200,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Marseille",         dept:"13",lat:43.300,lng:5.385, cote:"—",            score:58,src:"LBC"},
+  {id:56, model:"Citroën C3", version:"X-TR 1.4 HDi 92",              year:2012,km:145000,price:1900,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Marseille",         dept:"13",lat:43.295,lng:5.383, cote:"⭐⭐ Excellente",score:57,src:"AS24"},
+  {id:57, model:"Citroën C3", version:"1.1i Airplay 60ch",            year:2008,km:139000,price:750, fuel:"Ess.",seller:"AUTO BAX",    type:"Pro",city:"Épinal",            dept:"88",lat:48.174,lng:6.452, cote:"—",            score:53,src:"AS24"},
+  {id:58, model:"Citroën C3", version:"1.4i 73ch",                    year:2007,km:100000,price:2000,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Strasbourg",        dept:"67",lat:48.574,lng:7.752, cote:"—",            score:65,src:"LC"},
+  {id:59, model:"Opel Corsa", version:"1.2i 16V 75 Élégance",         year:2002,km:124000,price:999, fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Châtenay-Malabry",  dept:"92",lat:48.768,lng:2.268, cote:"—",            score:64,src:"LBC"},
+  {id:60, model:"Opel Corsa", version:"1.2i 16V Comfort 75ch",        year:2001,km:107000,price:1850,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Lille",             dept:"59",lat:50.630,lng:3.059, cote:"—",            score:65,src:"LBC"},
+  {id:61, model:"Opel Corsa", version:"1.3 CDTi 75 EcoFlex",          year:2007,km:140000,price:1900,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Valenciennes",      dept:"59",lat:50.357,lng:3.523, cote:"⭐⭐ Excellente",score:60,src:"LBC"},
+  {id:62, model:"Opel Corsa", version:"1.3 CDTi 75 EcoFlex",          year:2010,km:146000,price:1900,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Sarcelles",         dept:"95",lat:49.001,lng:2.377, cote:"⭐ Bonne",      score:58,src:"LAR"},
+  {id:63, model:"Opel Corsa", version:"1.2 Twinport 80 Cosmo",        year:2006,km:128000,price:1490,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Trith-Saint-Léger", dept:"59",lat:50.331,lng:3.475, cote:"⭐⭐ Excellente",score:60,src:"LBC"},
+  {id:64, model:"Opel Corsa", version:"1.2i 16V 75",                  year:2001,km:143000,price:1600,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Rennes",            dept:"35",lat:48.117,lng:-1.679,cote:"⭐ Bonne",      score:57,src:"LBC"},
+  {id:65, model:"Opel Corsa", version:"1.3 CDTi 75 Cosmo",            year:2007,km:140000,price:2300,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Reims",             dept:"51",lat:49.258,lng:4.031, cote:"Correcte",     score:55,src:"LC"},
+  {id:66, model:"Opel Corsa", version:"1.3 CDTi 90 Enjoy",            year:2010,km:142000,price:1500,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Lille",             dept:"59",lat:50.629,lng:3.058, cote:"⭐⭐ Excellente",score:58,src:"LBC"},
+  {id:67, model:"Opel Corsa", version:"1.2i 16V 75 Confort",          year:2001,km:77000, price:1850,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Lille",             dept:"59",lat:50.627,lng:3.057, cote:"—",            score:67,src:"LBC"},
+  {id:68, model:"Opel Corsa", version:"1.4i 16V 90 CDX",              year:1998,km:130000,price:1200,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Alès",              dept:"30",lat:44.126,lng:4.081, cote:"—",            score:50,src:"LBC"},
+  {id:69, model:"Ford Fiesta", version:"1.6 TDCi Senso 90ch 12k km",  year:2007,km:12000, price:1009,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Vicq",              dept:"59",lat:50.434,lng:3.448, cote:"⭐⭐ Excellente",score:90,src:"LBC"},
+  {id:70, model:"Ford Fiesta", version:"1.6 TDCi Senso 95k km",       year:2007,km:95000, price:2000,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Montpellier",       dept:"34",lat:43.611,lng:3.877, cote:"⭐⭐ Excellente",score:75,src:"AS24"},
+  {id:71, model:"Ford Fiesta", version:"1.4i Ghia 79ch",              year:2002,km:140000,price:1800,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Plaisir",           dept:"78",lat:48.820,lng:1.945, cote:"⭐⭐ Excellente",score:62,src:"LBC"},
+  {id:72, model:"Ford Fiesta", version:"1.3i Fun 69ch",               year:2006,km:138000,price:2490,fuel:"Ess.",seller:"Simplicicar",  type:"Pro",city:"Nice",              dept:"06",lat:43.708,lng:7.261, cote:"⭐⭐ Excellente",score:63,src:"AS24"},
+  {id:73, model:"Ford Fiesta", version:"1.3i Declic 60ch",            year:1997,km:102020,price:1900,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Semoy",             dept:"45",lat:47.904,lng:1.966, cote:"⭐⭐ Excellente",score:57,src:"LBC"},
+  {id:74, model:"Ford Fiesta", version:"1.3i Declic 60ch",            year:2008,km:128000,price:1800,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Bordeaux",          dept:"33",lat:44.838,lng:-0.581,cote:"⭐ Bonne",      score:60,src:"LBC"},
+  {id:75, model:"Ford Fiesta", version:"1.25 Ambiente 82ch",          year:2009,km:140000,price:1200,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Nice",              dept:"06",lat:43.707,lng:7.263, cote:"—",            score:61,src:"LBC"},
+  {id:76, model:"Ford Fiesta", version:"1.5 TDCi 75",                 year:2013,km:147000,price:1300,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Douvaine",          dept:"74",lat:46.304,lng:6.310, cote:"—",            score:59,src:"LBC"},
+  {id:77, model:"Ford Fiesta", version:"1.4 TDCi Ambiente",           year:2006,km:142000,price:2500,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Longwy",            dept:"54",lat:49.521,lng:5.761, cote:"—",            score:53,src:"LAR"},
+  {id:78, model:"Ford Fiesta", version:"1.6 TDCi ECOnetic 90ch",      year:2009,km:145000,price:800, fuel:"Die.",seller:"Particulier",  type:"P",  city:"Fruges",            dept:"62",lat:50.518,lng:2.137, cote:"—",            score:60,src:"LBC"},
+  {id:79, model:"Toyota Yaris", version:"75 D-4D Diesel",             year:2005,km:134000,price:2840,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Perpignan",         dept:"66",lat:42.699,lng:2.895, cote:"⭐ Bonne",      score:62,src:"LC"},
+  {id:80, model:"Toyota Yaris", version:"1.4 D-4D 90 Confort",        year:2011,km:143000,price:3100,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Creil",             dept:"60",lat:49.260,lng:2.483, cote:"⭐⭐ Excellente",score:63,src:"AS24"},
+  {id:81, model:"Toyota Yaris", version:"85 VVT-i Linéa Luna",        year:2003,km:140000,price:3499,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Angoulême",         dept:"16",lat:45.650,lng:0.157, cote:"⭐⭐ Excellente",score:58,src:"LC"},
+  {id:82, model:"Toyota Yaris", version:"1.3i Sol GPS A",             year:2000,km:143205,price:3900,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Crépy-en-Valois",   dept:"60",lat:49.234,lng:2.887, cote:"⭐⭐ Excellente",score:52,src:"AS24"},
+  {id:83, model:"Toyota Yaris", version:"1.0 69 VVT-i II",            year:2007,km:134000,price:4490,fuel:"Ess.",seller:"Drivekoster",  type:"Pro",city:"Nice",              dept:"06",lat:43.713,lng:7.260, cote:"Correcte",     score:55,src:"AS24"},
+  {id:84, model:"Toyota Yaris", version:"1.0 L VVTI 68ch",            year:2000,km:146000,price:600, fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Vicq-Nord",         dept:"59",lat:50.600,lng:3.100, cote:"—",            score:50,src:"LBC"},
+  {id:85, model:"Toyota Yaris", version:"1.4 D-4D 90 Confort Pack",   year:2009,km:145000,price:3900,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Villefontaine",     dept:"38",lat:45.609,lng:5.146, cote:"—",            score:50,src:"LC"},
+  {id:86, model:"Toyota Yaris", version:"1.3i Linea Sol A",           year:2002,km:145000,price:3500,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Franconville",      dept:"95",lat:48.988,lng:2.226, cote:"⭐⭐ Excellente",score:51,src:"LC"},
+  {id:87, model:"Toyota Yaris", version:"1.4 D-4D Camera Navi",       year:2011,km:140000,price:4750,fuel:"Die.",seller:"Joker Cars",   type:"Pro",city:"Lille",             dept:"59",lat:50.627,lng:3.056, cote:"—",            score:54,src:"AS24"},
+  {id:88, model:"Toyota Yaris", version:"1.0 69 VVT-i",               year:2006,km:132000,price:4900,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Mantes-la-Jolie",   dept:"78",lat:48.989,lng:1.717, cote:"—",            score:45,src:"AS24"},
+  {id:89, model:"SEAT Ibiza", version:"1.2 TDI 75 CR Réf. COPA",      year:2012,km:113500,price:3500,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Soissons",          dept:"02",lat:49.381,lng:3.323, cote:"⭐⭐ Excellente",score:65,src:"AS24"},
+  {id:90, model:"SEAT Ibiza", version:"ST 1.2 TDI 75 Réf. COPA",      year:2011,km:140000,price:2800,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Mulhouse",          dept:"68",lat:47.750,lng:7.340, cote:"Correcte",     score:60,src:"LBC"},
+  {id:91, model:"SEAT Ibiza", version:"SC 1.2 TDI 75 Style",          year:2012,km:140000,price:3350,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Valenciennes",      dept:"59",lat:50.356,lng:3.521, cote:"Correcte",     score:57,src:"AS24"},
+  {id:92, model:"SEAT Ibiza", version:"1.2i 12V 70 Réf.",             year:2006,km:143000,price:3500,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Istres",            dept:"13",lat:43.515,lng:4.987, cote:"Correcte",     score:50,src:"LC"},
+  {id:93, model:"SEAT Ibiza", version:"1.4 TDI 80 Confort Ed.",        year:2008,km:141000,price:1190,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Valenciennes",      dept:"59",lat:50.357,lng:3.524, cote:"—",            score:59,src:"LBC"},
+  {id:94, model:"SEAT Ibiza", version:"1.4 16V 76ch Atomic",           year:2003,km:137200,price:3490,fuel:"Ess.",seller:"Provence Car", type:"Pro",city:"La Farlède",        dept:"83",lat:43.216,lng:6.002, cote:"⭐⭐ Excellente",score:55,src:"AS24"},
+  {id:95, model:"SEAT Ibiza", version:"1.2 TDI 75 RÉF COPA",          year:2011,km:130000,price:3000,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Archamps",          dept:"74",lat:46.134,lng:6.091, cote:"⭐ Bonne",      score:58,src:"LC"},
+  {id:96, model:"SEAT Ibiza", version:"1.4 TDI 80 Réf.",              year:2010,km:149000,price:1900,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Lille",             dept:"59",lat:50.628,lng:3.057, cote:"⭐ Bonne",      score:55,src:"LAR"},
+  {id:97, model:"SEAT Ibiza", version:"1.4 TDI 80 Réf. SC",           year:2008,km:147000,price:2990,fuel:"Die.",seller:"Particulier",  type:"P",  city:"59200",             dept:"59",lat:50.370,lng:3.090, cote:"—",            score:52,src:"LBC"},
+  {id:98, model:"SEAT Ibiza", version:"1.2 CLX 63ch",                  year:1991,km:133000,price:1500,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Roussillon",        dept:"38",lat:45.371,lng:4.810, cote:"—",            score:40,src:"LBC"},
+  {id:99, model:"Renault Clio", version:"III 1.2 TCE 100 Dyn.",        year:2007,km:134000,price:1250,fuel:"Ess.",seller:"Particulier",  type:"P",  city:"Metz",              dept:"57",lat:49.120,lng:6.179, cote:"—",            score:65,src:"LC"},
+  {id:100,model:"Opel Corsa",  version:"1.3 CDTI 90 Enjoy Easy.",      year:2009,km:141000,price:2100,fuel:"Die.",seller:"Particulier",  type:"P",  city:"Dijon",             dept:"21",lat:47.322,lng:5.041, cote:"Correcte",     score:56,src:"AS24"},
+];
+
+// ── Distances & source ────────────────────────────────────────────────────────
+function haversine(a,b,c,d){
+  const R=6371,dLat=(c-a)*Math.PI/180,dLng=(d-b)*Math.PI/180;
+  const x=Math.sin(dLat/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dLng/2)**2;
+  return Math.round(R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x)));
+}
+vehicles.forEach(v=>v.dist=haversine(HOME.lat,HOME.lng,v.lat,v.lng));
+
+// ── URLs ──────────────────────────────────────────────────────────────────────
+const AS24_SLUG={
+  "Dacia Sandero":"dacia/sandero","Renault Clio":"renault/clio",
+  "VW Polo":"volkswagen/polo","Peugeot 208":"peugeot/208",
+  "Citroën C3":"citroen/c3","Opel Corsa":"opel/corsa",
+  "Ford Fiesta":"ford/fiesta","Toyota Yaris":"toyota/yaris","SEAT Ibiza":"seat/ibiza"
+};
+const LBC_TERMS={
+  "Dacia Sandero":"dacia sandero","Renault Clio":"renault clio",
+  "VW Polo":"volkswagen polo","Peugeot 208":"peugeot 208",
+  "Citroën C3":"citroen c3","Opel Corsa":"opel corsa",
+  "Ford Fiesta":"ford fiesta","Toyota Yaris":"toyota yaris","SEAT Ibiza":"seat ibiza"
+};
+const LC_SLUG={
+  "Dacia Sandero":"dacia+sandero","Renault Clio":"renault+clio",
+  "VW Polo":"volkswagen+polo","Peugeot 208":"peugeot+208",
+  "Citroën C3":"citroen+c3","Opel Corsa":"opel+corsa",
+  "Ford Fiesta":"ford+fiesta","Toyota Yaris":"toyota+yaris","SEAT Ibiza":"seat+ibiza"
+};
+const LAR_SLUG={
+  "Dacia Sandero":"dacia-sandero","Renault Clio":"renault-clio",
+  "VW Polo":"volkswagen-polo","Peugeot 208":"peugeot-208",
+  "Citroën C3":"citroen-c3","Opel Corsa":"opel-corsa",
+  "Ford Fiesta":"ford-fiesta","Toyota Yaris":"toyota-yaris","SEAT Ibiza":"seat-ibiza"
+};
+const FUEL_CODE={"Ess.":"B","Die.":"D","GPL":"L","E85":"E"};
+const pLo=v=>Math.max(0,Math.round(v.price*.85));
+const pHi=v=>Math.round(v.price*1.15);
+
+function urlAS24(v){
+  const slug=AS24_SLUG[v.model]||""; const fuel=FUEL_CODE[v.fuel]||"";
+  return `https://www.autoscout24.fr/lst/${slug}?sort=price&desc=0&offertype=U`
+    +`&price_from=${pLo(v)}&price_to=${pHi(v)}&re_from=${v.year}&re_to=${v.year}`
+    +`&km_to=150000`+(fuel?`&fuel=${fuel}`:"")+`&cy=F`;  // critère dur ≤ 150 000 km
+}
+function urlLBC(v){
+  const q=encodeURIComponent((LBC_TERMS[v.model]||"")+` ${v.year}`);
+  return `https://www.leboncoin.fr/recherche?category=2&text=${q}&price=${pLo(v)}-${pHi(v)}`;
+}
+function urlLC(v){ return `https://www.lacentrale.fr/auto/occasion/voiture/${LC_SLUG[v.model]||""}/`; }
+function urlLAR(v){ return `https://www.largus.fr/occasion/annonces/${LAR_SLUG[v.model]||""}.html?pricemax=${pHi(v)}`; }
+
+function buildUrl(v){
+  if(v.src==="LBC") return urlLBC(v);
+  if(v.src==="LC")  return urlLC(v);
+  if(v.src==="LAR") return urlLAR(v);
+  return urlAS24(v);
+}
+const SRC_META={
+  AS24:{label:"🔍 AutoScout24",cls:"btn-as24"},
+  LBC: {label:"🟠 LeBonCoin", cls:"btn-lbc"},
+  LC:  {label:"🔵 LaCentrale",cls:"btn-lc"},
+  LAR: {label:"🟢 L'Argus",   cls:"btn-lar"}
+};
+
+// ── SCORE COLOR ───────────────────────────────────────────────────────────────
+function scoreCls(s){return s>=85?"s-top":s>=70?"s-good":s>=55?"s-ok":"s-low";}
+
+// ── STATS CARDS ───────────────────────────────────────────────────────────────
+(function buildStats(){
+  const avg=arr=>Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+  const g=document.getElementById('stat-grid');
+  const topScore=Math.max(...vehicles.map(v=>v.score));
+  const topV=vehicles.find(v=>v.score===topScore);
+  const minPrice=Math.min(...vehicles.map(v=>v.price));
+  const minPV=vehicles.find(v=>v.price===minPrice);
+  const minKm=Math.min(...vehicles.map(v=>v.km));
+  const minKV=vehicles.find(v=>v.km===minKm);
+  [
+    {val:`${topScore}/100`,lbl:`Meilleur score — #${topV.id} ${topV.model}`},
+    {val:`${minPrice.toLocaleString('fr-FR')} €`,lbl:`Prix min — #${minPV.id} ${minPV.city}`},
+    {val:`${minKm.toLocaleString('fr-FR')} km`,lbl:`Km min — #${minKV.id} ${minKV.city}`},
+    {val:`${avg(vehicles.map(v=>v.price)).toLocaleString('fr-FR')} €`,lbl:"Prix moyen corpus"},
+    {val:`${avg(vehicles.map(v=>v.km)).toLocaleString('fr-FR')} km`,lbl:"Km moyen corpus"},
+    {val:`${avg(vehicles.map(v=>v.dist))} km`,lbl:"Distance moy. depuis 28800"},
+  ].forEach(({val,lbl})=>{
+    const d=document.createElement('div');
+    d.className='stat-card';
+    d.innerHTML=`<div class="val">${val}</div><div class="lbl">${lbl}</div>`;
+    g.appendChild(d);
+  });
+})();
+
+// ── TABLE RAPPORT ─────────────────────────────────────────────────────────────
+function renderTable(){
+  const model=document.getElementById('rModel').value;
+  const price=parseInt(document.getElementById('rPrice').value);
+  const dist=parseInt(document.getElementById('rDist').value);
+  const sort=document.getElementById('rSort').value;
+  const q=document.getElementById('rSearch').value.toLowerCase();
+
+  const km=parseInt(document.getElementById('rKm').value);
+  let data=vehicles.filter(v=>{
+    if(model && v.model!==model) return false;
+    if(v.price>price) return false;
+    if(v.km>km) return false;
+    if(v.dist>dist) return false;
+    if(q && !(v.model.toLowerCase().includes(q)||v.version.toLowerCase().includes(q)||v.city.toLowerCase().includes(q)||String(v.id)===q)) return false;
+    return true;
+  });
+  data.sort((a,b)=>{
+    if(sort==="score") return b.score-a.score;
+    if(sort==="price") return a.price-b.price;
+    if(sort==="km")    return a.km-b.km;
+    if(sort==="dist")  return a.dist-b.dist;
+    return 0;
+  });
+  document.getElementById('tbl-count').textContent=`${data.length} véhicule${data.length>1?'s':''}`;
+  const tbody=document.getElementById('main-tbody');
+  tbody.innerHTML='';
+  data.forEach(v=>{
+    const m=SRC_META[v.src];
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td style="color:var(--muted);font-weight:600;">${v.id}</td>
+      <td><strong style="color:#fff">${v.model}</strong><br><span style="color:var(--muted);font-size:.75rem">${v.version}</span></td>
+      <td>${v.year}</td>
+      <td>${v.km.toLocaleString('fr-FR')}</td>
+      <td style="color:var(--green);font-weight:700">${v.price.toLocaleString('fr-FR')} €</td>
+      <td>${v.fuel}</td>
+      <td style="font-size:.76rem">${v.type==='Pro'?'🏪':'👤'} ${v.seller}</td>
+      <td style="font-size:.76rem">${v.city}<br><span style="color:var(--muted)">(${v.dept})</span></td>
+      <td style="color:#f90">${v.dist} km</td>
+      <td><span class="score-badge ${scoreCls(v.score)}">${v.score}</span></td>
+      <td><a class="pin-btn ${m.cls}" href="${buildUrl(v)}" target="_blank">${m.label}</a></td>`;
+    tbody.appendChild(tr);
+  });
+}
+renderTable();
+
+// ── LINKS TABLE ANALYSE ───────────────────────────────────────────────────────
+(function buildLinksTable(){
+  const models=[
+    ["Dacia Sandero","dacia/sandero","dacia+sandero","dacia sandero","dacia-sandero"],
+    ["Renault Clio","renault/clio","renault+clio","renault clio","renault-clio"],
+    ["VW Polo","volkswagen/polo","volkswagen+polo","volkswagen polo","volkswagen-polo"],
+    ["Peugeot 208","peugeot/208","peugeot+208","peugeot 208","peugeot-208"],
+    ["Citroën C3","citroen/c3","citroen+c3","citroen c3","citroen-c3"],
+    ["Opel Corsa","opel/corsa","opel+corsa","opel corsa","opel-corsa"],
+    ["Ford Fiesta","ford/fiesta","ford+fiesta","ford fiesta","ford-fiesta"],
+    ["Toyota Yaris","toyota/yaris","toyota+yaris","toyota yaris","toyota-yaris"],
+    ["SEAT Ibiza","seat/ibiza","seat+ibiza","seat ibiza","seat-ibiza"],
+  ];
+  const tb=document.getElementById('links-tbody');
+  models.forEach(([name,as,lc,lbc,lar])=>{
+    const q=encodeURIComponent(lbc);
+    tb.innerHTML+=`<tr>
+      <td>${name}</td>
+      <td><a class="pin-btn btn-as24" href="https://www.autoscout24.fr/lst/${as}?sort=price&desc=0&offertype=U&price_to=5000&km_to=150000&cy=F" target="_blank">AutoScout24</a></td>
+      <td><a class="pin-btn btn-lc"   href="https://www.lacentrale.fr/auto/occasion/voiture/${lc}/" target="_blank">LaCentrale</a></td>
+      <td><a class="pin-btn btn-lbc"  href="https://www.leboncoin.fr/recherche?category=2&text=${q}&price=500-5000" target="_blank">LeBonCoin</a></td>
+      <td><a class="pin-btn btn-lar"  href="https://www.largus.fr/occasion/annonces/${lar}.html?pricemax=5000" target="_blank">L'Argus</a></td>
+    </tr>`;
+  });
+})();
+
+// ── MAP ───────────────────────────────────────────────────────────────────────
+let MAP=null, mapMarkers=[];
+const MODEL_COLORS={
+  "Dacia Sandero":"#00c853","Renault Clio":"#ff6d00","VW Polo":"#2962ff",
+  "Peugeot 208":"#d50000","Citroën C3":"#aa00ff","Opel Corsa":"#ffd600",
+  "Ford Fiesta":"#00bcd4","Toyota Yaris":"#e91e63","SEAT Ibiza":"#ff5722"
+};
+
+// Jitter : 1 point unique par véhicule
+(function jitter(){
+  const R=0.025,PER=6,gr={};
+  vehicles.forEach(v=>{ const k=`${v.city}_${v.dept}`; (gr[k]=gr[k]||[]).push(v); });
+  Object.values(gr).forEach(g=>{
+    if(g.length<2) return;
+    const n=g.length,cLat=g.reduce((s,v)=>s+v.lat,0)/n,cLng=g.reduce((s,v)=>s+v.lng,0)/n;
+    const cos=Math.cos(cLat*Math.PI/180);
+    g.forEach((v,i)=>{
+      const ring=Math.floor(i/PER)+1,pos=i%PER,inRing=Math.min(PER,n-(ring-1)*PER);
+      const angle=2*Math.PI*pos/inRing-Math.PI/2,r=R*ring;
+      v.lat=cLat+r*Math.cos(angle); v.lng=cLng+r*Math.sin(angle)/cos;
+    });
+  });
+})();
+
+function initMap(){
+  if(MAP) return;
+  MAP=L.map('map',{center:[46.8,2.3],zoom:6});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:19
+  }).addTo(MAP);
+
+  // Home
+  L.marker([HOME.lat,HOME.lng],{icon:L.divIcon({
+    className:'',iconSize:[32,32],iconAnchor:[16,16],
+    html:'<div style="font-size:26px;line-height:32px;text-align:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,.7))">🏠</div>'
+  }),zIndexOffset:1000}).addTo(MAP)
+    .bindPopup(`<div class="popup-title">📍 Domicile</div><div style="font-size:.82rem;color:var(--muted)">${HOME.label}</div>`);
+
+  // Cercles
+  [[150,'#00c853',0.08,'Zone proche (150 km)'],[300,'#ffd600',0.06,'Zone moyenne (300 km)'],[500,'#ff6d00',0.04,'Zone étendue (500 km)']].forEach(([km,c,o,lbl])=>{
+    L.circle([HOME.lat,HOME.lng],{radius:km*1000,color:c,weight:1.5,opacity:.5,fillColor:c,fillOpacity:o}).addTo(MAP).bindTooltip(lbl);
+  });
+
+  // Markers
+  vehicles.forEach(v=>{
+    const col=MODEL_COLORS[v.model]||"#999";
+    const r=v.score>=85?18:v.score>=70?14:v.score>=55?11:9;
+    const sCol=v.score>=85?'#6effa0':v.score>=70?'#ffd060':v.score>=55?'#ffab40':'#ef9a9a';
+    const m=SRC_META[v.src];
+    const selBadge=v.type==='Pro'
+      ?`<span class="popup-badge badge-pro">🏪 Pro</span>`
+      :`<span class="popup-badge badge-part">👤 Particulier</span>`;
+    const coteBadge=v.cote!=='—'?`<span class="popup-badge badge-star">${v.cote}</span>`:'';
+    const popup=`
+      <div style="min-width:250px">
+        <div class="popup-title">#${v.id} — ${v.model}</div>
+        <div style="font-size:.76rem;color:#bbb;margin-bottom:6px">${v.version}</div>
+        <div class="popup-row"><span class="popup-key">Année</span><span class="popup-val">${v.year}</span></div>
+        <div class="popup-row"><span class="popup-key">Km</span><span class="popup-val">${v.km.toLocaleString('fr-FR')} km</span></div>
+        <div class="popup-row"><span class="popup-key">Prix</span><span class="popup-val" style="color:var(--green)">${v.price.toLocaleString('fr-FR')} €</span></div>
+        <div class="popup-row"><span class="popup-key">Carburant</span><span class="popup-val">${v.fuel}</span></div>
+        <div class="popup-row"><span class="popup-key">Score</span><span class="popup-val" style="color:${sCol}">${v.score}/100</span></div>
+        <div style="margin-top:5px">${selBadge} ${coteBadge}</div>
+        <div class="popup-dist">📍 ${v.city} (${v.dept}) · <strong>${v.dist} km</strong></div>
+        <a class="pin-btn ${m.cls}" style="display:block;margin-top:8px;text-align:center;padding:6px"
+           href="${buildUrl(v)}" target="_blank">${m.label}</a>
+      </div>`;
+    const marker=L.circleMarker([v.lat,v.lng],{
+      radius:r,color:'#fff',weight:1.5,
+      fillColor:col,fillOpacity:v.type==='Pro'?1:.75
+    }).bindPopup(popup,{maxWidth:300});
+    mapMarkers.push({marker,vehicle:v});
+    marker.addTo(MAP);
+  });
+  layerGroup=L.layerGroup(); // not needed as markers added directly
+
+  // Légende
+  const leg=L.control({position:'bottomright'});
+  leg.onAdd=()=>{
+    const d=L.DomUtil.create('div','legend');
+    d.innerHTML='<h4>Modèles</h4>'+Object.entries(MODEL_COLORS).map(([nm,c])=>`<div><span class="dot" style="background:${c}"></span>${nm}</div>`).join('')
+      +`<hr style="border-color:var(--deep);margin:7px 0">
+      <h4>Score → taille cercle</h4>
+      <div><span class="dot" style="background:#888;width:18px;height:18px"></span>≥ 85</div>
+      <div><span class="dot" style="background:#888;width:14px;height:14px"></span>70–84</div>
+      <div><span class="dot" style="background:#888;width:11px;height:11px"></span>55–69</div>
+      <div><span class="dot" style="background:#888;width:9px;height:9px"></span>&lt; 55</div>`;
+    return d;
+  };
+  leg.addTo(MAP);
+
+  applyFilters();
+}
+
+let layerGroup;
+function applyFilters(){
+  if(!MAP) return;
+  const model=document.getElementById('filterModel').value;
+  const price=parseInt(document.getElementById('filterPrice').value);
+  const seller=document.getElementById('filterSeller').value;
+  const dist=parseInt(document.getElementById('filterDist').value);
+  const score=parseInt(document.getElementById('filterScore').value);
+  const km=parseInt(document.getElementById('filterKm').value);
+  let count=0;
+  mapMarkers.forEach(({marker,vehicle:v})=>{
+    const show=(model==='all'||v.model===model)&&v.price<=price
+      &&(seller==='all'||v.type===seller)&&v.dist<=dist&&v.score>=score&&v.km<=km;
+    if(show){marker.addTo(MAP);count++;}else MAP.removeLayer(marker);
+  });
+  document.getElementById('countVisible').textContent=count;
+}
+
+// Init map when tab shown
+document.querySelector('[onclick="showTab(\'map\')"]').addEventListener('click',()=>{
+  setTimeout(initMap,80);
+});
+initMap(); // init immediately since map tab is active by default
+</script>
+</body>
+</html>
